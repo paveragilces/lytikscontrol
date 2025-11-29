@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { 
   Building2, LogOut, Clock, ChevronRight, ScanLine, UserPlus, ShieldCheck, 
-  ArrowLeft, Camera, PenTool, CheckCircle2, AlertTriangle, RefreshCcw
+  ArrowLeft, Camera, CheckCircle2, RefreshCcw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Webcam from 'react-webcam';
@@ -13,6 +13,7 @@ export const TabletMode = ({ visits, setVisits, decrementUse, handleCheckIn, han
   const [flowType, setFlowType] = useState('entry'); // 'entry' | 'exit'
   const [scannedData, setScannedData] = useState(null);
   const [revealedCodeId, setRevealedCodeId] = useState(null);
+  const [walkinData, setWalkinData] = useState({ name: '', company: '', doc: '', host: '' });
   
   // Evidencias temporales
   const [evidence, setEvidence] = useState({ docPhoto: null, assetPhoto: null, signature: null });
@@ -95,20 +96,58 @@ export const TabletMode = ({ visits, setVisits, decrementUse, handleCheckIn, han
       setEvidence(prev => ({ ...prev, [type]: imageSrc }));
   };
 
-  const clearSignature = () => sigPadRef.current.clear();
+  const clearSignature = () => {
+      if (sigPadRef.current) sigPadRef.current.clear();
+  };
   
   const saveSignatureAndFinish = () => {
-      if (sigPadRef.current.isEmpty()) {
-          addNotification('Por favor firme para continuar', 'warn');
-          return;
+      try {
+          if (!sigPadRef.current) return;
+          if (sigPadRef.current.isEmpty()) {
+              addNotification('Por favor firme para continuar', 'warn');
+              return;
+          }
+          if (!scannedData || !scannedData.id) {
+              addNotification('Error de sesión. Reinicie el proceso.', 'crit');
+              setView('home');
+              return;
+          }
+
+          // --- CORRECCIÓN CRÍTICA ---
+          // Usamos getCanvas() en lugar de getTrimmedCanvas() para evitar el crash con Vite
+          const sigData = sigPadRef.current.getCanvas().toDataURL('image/png');
+          
+          const finalEvidence = { ...evidence, signature: sigData };
+          
+          // TRIGGER FINAL CHECK-IN
+          handleCheckIn(scannedData.id, finalEvidence);
+          decrementUse(scannedData.id);
+          setView('process');
+
+      } catch (error) {
+          console.error("Error al guardar firma:", error);
+          addNotification('Error al procesar la firma. Intente de nuevo.', 'crit');
       }
-      const sigData = sigPadRef.current.getTrimmedCanvas().toDataURL('image/png');
-      const finalEvidence = { ...evidence, signature: sigData };
-      
-      // TRIGGER FINAL CHECK-IN
-      handleCheckIn(scannedData.id, finalEvidence);
-      decrementUse(scannedData.id);
-      setView('process');
+  };
+
+  const handleWalkinSubmit = () => {
+    if (!walkinData.name || !walkinData.doc) return; 
+    
+    // Crear visita temporal para walk-in y enviarla al Wizard
+    const newVisit = {
+      id: `w-${Date.now()}`,
+      visitorName: walkinData.name,
+      company: walkinData.company || 'Particular',
+      hostName: walkinData.host || 'Recepción',
+      status: 'approved', // Aprobado temporalmente para pasar al wizard
+      type: 'Visitante',
+      hasAssets: false // Por defecto false, se podría agregar campo
+    };
+
+    setVisits(prev => [newVisit, ...prev]);
+    setScannedData(newVisit);
+    setEvidence({ docPhoto: null, assetPhoto: null, signature: null });
+    setView('photo-id'); // Enviar al wizard de evidencias
   };
 
   // --- COMPONENTES AUXILIARES ---
@@ -200,7 +239,7 @@ export const TabletMode = ({ visits, setVisits, decrementUse, handleCheckIn, han
           <StepHeader step="1" title="Foto de Identificación" desc="Por favor muestre su Cédula o Pasaporte a la cámara." />
           <div className="w-full max-w-md aspect-video bg-black rounded-3xl overflow-hidden border-2 border-white/20 shadow-2xl relative z-10 mb-8 group">
               {evidence.docPhoto ? (
-                  <img src={evidence.docPhoto} className="w-full h-full object-cover" />
+                  <img src={evidence.docPhoto} className="w-full h-full object-cover" alt="ID" />
               ) : (
                   <Webcam audio={false} ref={webcamRef} screenshotFormat="image/jpeg" className="w-full h-full object-cover mirror-0" />
               )}
@@ -226,7 +265,7 @@ export const TabletMode = ({ visits, setVisits, decrementUse, handleCheckIn, han
           <StepHeader step="2" title="Registro de Activos" desc={`Muestre el equipo: ${scannedData?.assetBrand || 'Equipo'} - ${scannedData?.assetSerial || ''}`} />
           <div className="w-full max-w-md aspect-video bg-black rounded-3xl overflow-hidden border-2 border-white/20 shadow-2xl relative z-10 mb-8">
               {evidence.assetPhoto ? (
-                  <img src={evidence.assetPhoto} className="w-full h-full object-cover" />
+                  <img src={evidence.assetPhoto} className="w-full h-full object-cover" alt="Asset" />
               ) : (
                   <Webcam audio={false} ref={webcamRef} screenshotFormat="image/jpeg" className="w-full h-full object-cover" />
               )}
@@ -278,6 +317,62 @@ export const TabletMode = ({ visits, setVisits, decrementUse, handleCheckIn, han
                 <div className="absolute top-0 left-0 w-full h-1 bg-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.8)] animate-[scan_2s_infinite_linear]"></div>
             </div>
             <p className="relative z-10 mt-10 text-white font-medium bg-black/60 px-6 py-3 rounded-full backdrop-blur-xl border border-white/10">{scanMessage}</p>
+        </div>
+    </div>
+  );
+
+  // --- WALK-IN VIEW (MANUAL) ---
+  if (view === 'walkin') return (
+    <div className="min-h-screen relative overflow-hidden bg-[#0b1020] text-white flex flex-col items-center justify-center p-6">
+        <Background />
+        <div className="relative z-10 w-full max-w-lg">
+            <button onClick={() => setView('home')} className="mb-6 flex items-center gap-2 text-slate-400 hover:text-white transition-colors">
+                <ArrowLeft size={20} /> Volver al inicio
+            </button>
+            <div className="rounded-[32px] border border-white/10 relative overflow-hidden shadow-2xl">
+                <div className="absolute inset-0 bg-white/5 backdrop-blur-xl"></div>
+                <div className="relative z-10 p-8">
+                    <div className="mb-8">
+                        <div className="w-12 h-12 rounded-xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center mb-4 text-indigo-300">
+                            <UserPlus size={24} />
+                        </div>
+                        <h2 className="text-2xl font-bold text-white">Registro Manual</h2>
+                        <p className="text-slate-400 text-sm mt-1">Completa tus datos para iniciar el proceso.</p>
+                    </div>
+                    <div className="space-y-4">
+                        <div>
+                            <label className="text-xs font-semibold text-slate-300 ml-1 mb-1.5 block">Nombre Completo</label>
+                            <input className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                                value={walkinData.name} onChange={e => setWalkinData({...walkinData, name: e.target.value})} placeholder="Ej. Juan Pérez" />
+                        </div>
+                        <div>
+                            <label className="text-xs font-semibold text-slate-300 ml-1 mb-1.5 block">Documento de Identidad</label>
+                            <input className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                                value={walkinData.doc} onChange={e => setWalkinData({...walkinData, doc: e.target.value})} placeholder="DNI / Pasaporte" />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="text-xs font-semibold text-slate-300 ml-1 mb-1.5 block">Empresa</label>
+                                <input className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                                    value={walkinData.company} onChange={e => setWalkinData({...walkinData, company: e.target.value})} placeholder="Opcional" />
+                            </div>
+                            <div>
+                                <label className="text-xs font-semibold text-slate-300 ml-1 mb-1.5 block">Anfitrión</label>
+                                <select className="w-full bg-slate-900/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 outline-none appearance-none"
+                                    value={walkinData.host} onChange={e => setWalkinData({...walkinData, host: e.target.value})} >
+                                    <option value="">Seleccionar...</option>
+                                    <option value="Recepción">Recepción</option>
+                                    <option value="Ana López">Ana López</option>
+                                </select>
+                            </div>
+                        </div>
+                        <Button className="w-full mt-4 py-4 bg-indigo-600 hover:bg-indigo-500 text-lg font-semibold shadow-lg shadow-indigo-500/20" 
+                            onClick={handleWalkinSubmit} disabled={!walkinData.name || !walkinData.doc}>
+                            Continuar a Evidencias <ChevronRight size={18}/>
+                        </Button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
   );

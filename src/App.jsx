@@ -340,6 +340,7 @@ export default function App() {
             codeLookup={codeLookup}
             setCodeLookup={setCodeLookup}
             codeError={codeError}
+            setCodeError={setCodeError} // FIX: Se agrega la prop faltante
             codeVisit={codeVisit}
             handleCodeValidate={handleCodeValidate}
             handleLogout={handleLogout}
@@ -354,7 +355,7 @@ export default function App() {
             setVisits={setVisits}
             decrementUse={decrementUse}
             handleCheckIn={handleCheckIn}
-            handleCheckout={handleCheckout} // Pasamos la función de salida
+            handleCheckout={handleCheckout} 
             addLog={addLog}
             addNotification={addNotification}
             lastCodeRotation={lastCodeRotation}

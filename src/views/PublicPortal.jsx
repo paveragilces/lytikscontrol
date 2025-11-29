@@ -4,14 +4,13 @@ import {
   Laptop, Tablet, Smartphone, Car, Monitor, ShieldAlert, 
   Play, AlertCircle, UserPlus, QrCode, ArrowLeft, X, Clock3
 } from 'lucide-react';
-import { Button, Input, Select } from '../components/ui'; // Asumo que Card no se usa o es parte de ui
+import { Button, Input, Select } from '../components/ui'; 
 import { QRCodeCanvas } from 'qrcode.react';
 import ReactPlayer from 'react-player';
 
 // Listas de datos
 const COMMON_BRANDS = ['Apple', 'Dell', 'HP', 'Lenovo', 'Samsung', 'Asus', 'Acer', 'Microsoft', 'Huawei', 'Xiaomi', 'Otra'];
 
-// Áreas de la empresa
 const AREAS = [
   'Presidencia', 'Dirección Ejecutiva', 'Subdirección', 'Marketing', 
   'Comunicaciones', 'Logística', 'Comercial', 'Contabilidad', 
@@ -202,6 +201,7 @@ export const PublicPortal = ({
   codeLookup,
   setCodeLookup,
   codeError,
+  setCodeError, // FIX: Se agregó esta prop
   codeVisit,
   handleCodeValidate,
   handleLogout,
