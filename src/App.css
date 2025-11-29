@@ -3,209 +3,60 @@
 @tailwind utilities;
 
 :root {
-  --page-bg: radial-gradient(120% 120% at 12% 18%, rgba(99, 102, 241, 0.14), transparent 38%),
-              radial-gradient(130% 130% at 82% 8%, rgba(14, 165, 233, 0.12), transparent 36%),
-              radial-gradient(120% 120% at 50% 75%, rgba(16, 185, 129, 0.08), transparent 38%),
-              #0a111f;
-  --surface-1: rgba(255, 255, 255, 0.03);
-  --surface-2: rgba(255, 255, 255, 0.06);
-  --surface-3: rgba(255, 255, 255, 0.12);
-  --border-soft: rgba(255, 255, 255, 0.12);
-  --border-strong: rgba(255, 255, 255, 0.2);
-  --text-strong: #e8ecf7;
-  --text-subtle: #b6c2e0;
-  --text-muted: #8292b5;
-  --primary-from: #6366f1;
-  --primary-to: #22d3ee;
-  --accent-emerald: #10b981;
-  --accent-amber: #f59e0b;
-  --accent-danger: #ef4444;
+  /* Variables base */
   --radius-lg: 18px;
   --radius-xl: 22px;
-  --shadow-lg: 0 25px 80px -45px rgba(0, 0, 0, 0.65);
-  --shadow-card: 0 18px 60px -40px rgba(12, 18, 35, 0.85);
-  --shadow-primary: 0 20px 40px -15px rgba(99, 102, 241, 0.65);
+  --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  
+  /* Animaciones */
   --motion-fast: 0.16s;
-  --motion-med: 0.28s;
   --ease-standard: cubic-bezier(0.33, 1, 0.68, 1);
 }
 
 body {
-  background: var(--page-bg);
-  color: var(--text-strong);
-  font-family: 'Inter', 'SF Pro Display', 'Poppins', system-ui, -apple-system, sans-serif;
-  letter-spacing: -0.01em;
-}
-
-.theme-card {
-  background: var(--surface-1);
-  border: 1px solid var(--border-soft);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-card);
-  backdrop-filter: blur(10px);
-}
-
-.theme-card-strong {
-  background: var(--surface-2);
-  border: 1px solid var(--border-strong);
-  box-shadow: var(--shadow-lg);
-  position: relative;
-}
-
-.glass-blur {
-  background: linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02));
-  border: 1px solid var(--border-soft);
-  box-shadow: 0 24px 70px -40px rgba(0,0,0,0.65);
-  backdrop-filter: blur(12px);
-}
-
-.btn-base {
-  position: relative;
-  overflow: hidden;
-  border-radius: var(--radius-lg);
-  font-weight: 700;
-  letter-spacing: -0.01em;
-}
-
-.btn-primary {
-  background: linear-gradient(120deg, var(--primary-from), var(--primary-to));
-  color: white;
-  box-shadow: var(--shadow-primary);
-}
-
-.btn-secondary {
-  background: var(--surface-1);
-  border: 1px solid var(--border-soft);
-  color: var(--text-strong);
-}
-
-.btn-ghost {
-  background: transparent;
-  border: 1px solid var(--border-soft);
-  color: var(--text-strong);
-}
-
-.input-base {
-  background: var(--surface-1);
-  border: 1px solid var(--border-soft);
-  color: var(--text-strong);
-  border-radius: var(--radius-lg);
-}
-
-.input-light {
-  background: white;
+  font-family: 'Inter', 'SF Pro Display', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  /* Eliminamos el background global complejo aquí para controlarlo por vista */
+  background-color: #f8fafc; 
   color: #0f172a;
+}
+
+/* TEMA "SPACE" (Para Login y Kiosko) */
+.theme-space {
+  background: radial-gradient(120% 120% at 12% 18%, rgba(99, 102, 241, 0.14), transparent 38%),
+              radial-gradient(130% 130% at 82% 8%, rgba(14, 165, 233, 0.12), transparent 36%),
+              #0a111f;
+  color: #f8fafc;
+  min-height: 100vh;
+}
+
+.theme-space .glass-card {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* TEMA "ADMIN" (Para Dashboard) */
+.theme-admin {
+  background-color: #f1f5f9; /* Slate-100 */
+  color: #0f172a;
+  min-height: 100vh;
+}
+
+.theme-admin .card-base {
+  background: white;
   border: 1px solid #e2e8f0;
-}
-
-.badge-soft {
-  background: var(--surface-2);
-  border: 1px solid var(--border-soft);
-  color: var(--text-subtle);
-}
-
-.motion-soft {
-  transition: transform var(--motion-fast) var(--ease-standard), box-shadow var(--motion-med) var(--ease-standard), background-color var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard), opacity var(--motion-fast) var(--ease-standard);
-}
-
-.hover-lift:hover {
-  transform: translateY(-2px);
   box-shadow: var(--shadow-card);
+  border-radius: 12px;
 }
 
-.focus-outline:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.35);
+/* Utilidades generales */
+.btn-base {
+  transition: all var(--motion-fast) var(--ease-standard);
 }
+.btn-base:active { transform: scale(0.98); }
 
-.card-hover {
-  transition: transform var(--motion-fast) var(--ease-standard), box-shadow var(--motion-med) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard);
-}
-.card-hover:hover {
-  transform: translateY(-3px);
-  border-color: rgba(255, 255, 255, 0.2);
-  box-shadow: var(--shadow-card);
-}
-
-/* Custom Animations */
-@layer utilities {
-  .animate-fade-in {
-    animation: fadeIn 0.5s ease-out forwards;
-  }
-  
-  .animate-fade-in-up {
-    animation: fadeInUp 0.5s ease-out forwards;
-  }
-  
-  .animate-slide-in-right {
-    animation: slideInRight 0.3s ease-out forwards;
-  }
-  
-  .animate-scan {
-    animation: scan 3s linear infinite;
-    background: linear-gradient(to bottom, transparent, #6366f1, transparent);
-    width: 100%;
-    position: absolute;
-    height: 40%;
-  }
-
-  .animate-bounce-slow {
-    animation: bounce 2s infinite;
-  }
-
-  .scan-aurora {
-    background: radial-gradient(circle at 20% 20%, rgba(99,102,241,0.35), transparent 35%),
-                radial-gradient(circle at 80% 30%, rgba(14,165,233,0.25), transparent 35%),
-                radial-gradient(circle at 50% 80%, rgba(16,185,129,0.15), transparent 40%);
-    filter: blur(10px);
-  }
-
-  .scan-grid {
-    background-image:
-      linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px);
-    background-size: 18px 18px;
-    animation: scanPulse 3s ease-in-out infinite;
-  }
-
-  .tech-lines {
-    background-image:
-      linear-gradient(120deg, rgba(99,102,241,0.22) 10%, transparent 12%),
-      linear-gradient(120deg, rgba(14,165,233,0.16) 18%, transparent 20%),
-      linear-gradient(120deg, rgba(16,185,129,0.14) 24%, transparent 26%);
-    background-size: 260px 260px;
-    animation: techFlow 12s linear infinite;
-  }
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes slideInRight {
-  from { transform: translateX(100%); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
-}
-
-@keyframes scan {
-  0% { top: 0; }
-  50% { top: 100%; }
-  100% { top: 0; }
-}
-
-@keyframes scanPulse {
-  0%, 100% { opacity: 0.6; }
-  50% { opacity: 1; }
-}
-
-@keyframes techFlow {
-  0% { background-position: 0 0, 0 0, 0 0; }
-  50% { background-position: 80px 120px, 120px 160px, 60px 140px; }
-  100% { background-position: 160px 240px, 240px 320px, 120px 280px; }
-}
+/* Animaciones */
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }

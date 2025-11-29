@@ -1,29 +1,17 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
-  Building2, QrCode, UserCheck, ShieldCheck, Clock, Fingerprint,
-  LayoutDashboard, Users, FileText, Settings, 
-  CheckCircle2, XCircle, ChevronRight, Camera, Search,
-  Bell, Filter, Calendar, MapPin, MonitorSmartphone, Shield, Globe2, User as UserIcon, Hand, AlertTriangle, Info
+  ShieldCheck, MonitorSmartphone, Shield, Globe2, User as UserIcon, Hand, AlertTriangle, Info
 } from 'lucide-react';
-import { QRCodeCanvas } from 'qrcode.react';
-import { AnimatePresence, motion } from 'framer-motion';
-import { Button, Card, Badge, Input, Select, CountdownCircle } from './components/ui';
 import { LoginScreen } from './views/LoginScreen';
 import { PublicPortal } from './views/PublicPortal';
 import { TabletMode } from './views/TabletMode';
 import { InternalLayout } from './views/InternalLayout';
+import { EvacuationView } from './views/EvacuationView';
 
-// --- MOCK DATA & CONFIG ---
-
+// --- DATA INICIAL ---
 const INITIAL_VISITS = [
-  { id: 'v1', visitorName: 'Juan Pérez', company: 'Tech Solutions', type: 'Proveedor', hostId: 'h1', hostName: 'Ana López', area: 'Logística', motive: 'Reunión', status: 'pending', date: '2025-11-26', time: '10:00' },
-  { id: 'v2', visitorName: 'María Gomez', company: 'Audit Corp', type: 'Auditor', hostId: 'h2', hostName: 'Carlos Ruiz', area: 'Finanzas', motive: 'Auditoría', status: 'approved', qrCode: 'QR-V2-SECURE', date: '2025-11-26', time: '09:00', checkIn: null },
-  { id: 'v3', visitorName: 'Roberto Díaz', company: 'Freelance', type: 'Contratista', hostId: 'h1', hostName: 'Ana López', area: 'IT', motive: 'Mantenimiento', status: 'checked-in', qrCode: 'QR-V3-SECURE', date: '2025-11-26', time: '08:30', checkIn: '08:35', photos: { doc: true, face: true } },
-];
-
-const INITIAL_LOGS = [
-  { id: 1, action: 'Aprobación', detail: 'Ana López aprobó visita de Roberto Díaz', time: '2025-11-25 14:00', user: 'Ana López' },
-  { id: 2, action: 'Check-in', detail: 'Roberto Díaz ingresó a planta', time: '2025-11-26 08:35', user: 'Tablet Recepción' },
+  { id: 'v1', visitorName: 'Juan Pérez', company: 'Tech Solutions', type: 'Proveedor', hostId: 'h1', hostName: 'Ana López', status: 'pending', date: '2025-11-26', time: '10:00', cedula: '0912345678', assetBrand: 'Dell', assetSerial: 'GTX-900', hasAssets: true },
+  { id: 'v2', visitorName: 'María Gomez', company: 'Audit Corp', type: 'Auditor', hostId: 'h2', hostName: 'Carlos Ruiz', status: 'approved', qrCode: 'QR-V2-SECURE', date: '2025-11-26', time: '09:00', cedula: '0987654321', hasAssets: false },
 ];
 
 const VISIT_TYPES = ['Cliente', 'Proveedor', 'Auditor', 'Candidato', 'Contratista', 'Personal'];
@@ -32,23 +20,30 @@ const generateCode = () => Math.floor(100000 + Math.random() * 900000).toString(
 export default function App() {
   const [role, setRole] = useState('admin'); 
   const [visits, setVisits] = useState(INITIAL_VISITS);
-  const [logs, setLogs] = useState(INITIAL_LOGS);
+  const [logs, setLogs] = useState([]);
   const [notifications, setNotifications] = useState([]);
-  const [codeLookup, setCodeLookup] = useState('');
-  const [codeVisit, setCodeVisit] = useState(null);
-  const [codeError, setCodeError] = useState('');
-  const [lastCodeRotation, setLastCodeRotation] = useState(Date.now());
-  const jsQRRef = useRef(null);
+  
+  // Auth States
   const [authenticated, setAuthenticated] = useState(false);
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPass, setLoginPass] = useState('');
   const [loginRole, setLoginRole] = useState('admin');
-  const [loginMode, setLoginMode] = useState(null); // kiosk | visitor | admin
-  const [portalStep, setPortalStep] = useState(1);
-  const [portalFormData, setPortalFormData] = useState({ visitorName: '', email: '', company: '', motive: '', type: 'Cliente', date: '', time: '' });
+  const [loginMode, setLoginMode] = useState(null);
 
+  // Portal States
+  const [portalStep, setPortalStep] = useState(1);
+  const [portalFormData, setPortalFormData] = useState({ 
+    visitorName: '', email: '', company: '', motive: '', type: 'Cliente', 
+    date: '', time: '', cedula: '', phone: '', residenceType: 'national', passport: ''
+  });
+  const [codeLookup, setCodeLookup] = useState('');
+  const [codeVisit, setCodeVisit] = useState(null);
+  const [codeError, setCodeError] = useState('');
+  const [lastCodeRotation, setLastCodeRotation] = useState(Date.now());
+
+  // --- EFECTOS ---
   useEffect(() => {
-    // Auto-asigna códigos/QR/uses a visitas aprobadas
+    // Generar códigos iniciales
     setVisits(prev => prev.map(v => {
       if (v.status === 'approved') {
         return { 
@@ -64,6 +59,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    // Rotación de códigos OTP
     const interval = setInterval(() => {
       setVisits(prev => prev.map(v => {
         if (v.status === 'approved' && (v.usesRemaining ?? 2) > 0) {
@@ -80,16 +76,16 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // --- ACTIONS ---
+  // --- LOGICA DE NEGOCIO ---
 
   const addNotification = (msg, severity = 'info') => {
     const id = Date.now();
-    const ts = new Date().toISOString();
-    setNotifications(prev => {
-      if (prev.some(n => n.msg === msg && n.severity === severity)) return prev;
-      return [...prev, { id, msg, severity, ts }];
-    });
+    setNotifications(prev => [...prev, { id, msg, severity, ts: new Date().toISOString() }]);
     setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id)), 4000);
+  };
+
+  const addLog = (action, detail, user) => {
+    setLogs(prev => [{ id: Date.now(), action, detail, time: new Date().toLocaleString(), user }, ...prev]);
   };
 
   const createVisitRequest = (data) => {
@@ -98,7 +94,8 @@ export default function App() {
       ...data,
       status: 'pending',
       hostId: 'h1', 
-      hostName: 'Ana López', 
+      hostName: 'Ana López',
+      hasAssets: !!data.assetBrand // Detectar si hay activos
     };
     setVisits(prev => [newVisit, ...prev]);
     addLog('Solicitud', `Nueva solicitud de ${data.visitorName}`, 'Sistema Público');
@@ -123,14 +120,19 @@ export default function App() {
     addNotification(`Visita ${newStatus === 'approved' ? 'Aprobada' : 'Actualizada'}`);
   };
 
-  const handleCheckIn = (visitId, photos) => {
-    setVisits(prev => prev.map(v => v.id === visitId ? { ...v, status: 'checked-in', checkIn: new Date().toLocaleTimeString(), photos } : v));
-    addLog('Check-in', `Ingreso confirmado ID ${visitId}`, 'Tablet Recepción');
+  // CHECK-IN CON EVIDENCIAS (FOTOS Y FIRMA)
+  const handleCheckIn = (visitId, evidenceData = {}) => {
+    setVisits(prev => prev.map(v => 
+      v.id === visitId ? { 
+        ...v, 
+        status: 'checked-in', 
+        checkIn: new Date().toLocaleTimeString(), 
+        evidence: evidenceData, // { docPhoto, assetPhoto, signature }
+        exitPermission: false // Resetear permiso de salida al entrar
+      } : v
+    ));
+    addLog('Check-in', `Ingreso confirmado ID ${visitId} con evidencias`, 'Kiosko');
     addNotification('Check-in exitoso. Bienvenido.');
-  };
-
-  const addLog = (action, detail, user) => {
-    setLogs(prev => [{ id: Date.now(), action, detail, time: new Date().toLocaleString(), user }, ...prev]);
   };
 
   const decrementUse = (visitId) => {
@@ -142,44 +144,118 @@ export default function App() {
     }));
   };
 
+  // VALIDACIÓN DE ACTIVOS POR PORTERÍA (Paso previo al Checkout)
+  const handleAssetValidation = (visitId, guardianName) => {
+    setVisits(prev => prev.map(v => 
+        v.id === visitId ? { ...v, exitPermission: true, assetValidationTime: new Date().toLocaleTimeString(), guardianName } : v
+    ));
+    addLog('Validación Activos', `Salida autorizada para ${visitId}`, guardianName);
+    addNotification('Salida autorizada por Portería.');
+  };
+
+  // CHECK-OUT SEGURO
+  const handleCheckout = (visitId) => {
+    // 1. Buscar visita
+    const visit = visits.find(v => v.id === visitId);
+    
+    // 2. Validar permiso de salida (Candado)
+    // Si no tiene permiso y el rol es Kiosko (usuario final), bloquear.
+    // Admin puede forzar salida.
+    if (role === 'kiosk' && !visit.exitPermission) {
+        addNotification('⚠️ SALIDA DENEGADA: Portería debe validar activos y escarapela primero.', 'crit');
+        return false; // Retorna falso para que el Kiosko sepa que falló
+    }
+
+    setVisits(prev => prev.map(v => v.id === visitId ? { ...v, status: 'checked-out', checkOut: new Date().toLocaleTimeString() } : v));
+    addLog('Check-out', `Salida registrada para ID ${visitId}`, role);
+    addNotification('Salida registrada. Hasta pronto.');
+    return true;
+  };
+
+  const markJudicialResult = (visitId, result, observation) => {
+    setVisits(prev => prev.map(v => v.id === visitId ? { ...v, judicialCheck: { result, observation, at: new Date().toISOString() } } : v));
+    addLog('Verificación Judicial', `Visita ${visitId}: ${result}`, 'Seguridad');
+    addNotification(`Verificación judicial: ${result}`);
+  };
+
+  // GENERADOR PDF ACTUALIZADO CON FOTOS Y FIRMA
   const generatePDF = async (visit) => {
     const { jsPDF } = await import('jspdf');
     const doc = new jsPDF();
-    doc.setFontSize(14);
-    doc.text('Reporte de Visita', 14, 20);
-    doc.setFontSize(11);
-    doc.text(`Visitante: ${visit.visitorName}`, 14, 30);
-    doc.text(`Empresa: ${visit.company} | Tipo: ${visit.type}`, 14, 38);
-    doc.text(`Anfitrión: ${visit.hostName}`, 14, 46);
-    doc.text(`Fecha/Hora: ${visit.date} ${visit.time}`, 14, 54);
-    doc.text(`Estado: ${visit.status}`, 14, 62);
-    doc.text(`QR: ${visit.qrCode || ''}`, 14, 70);
-    doc.text(`Usos restantes: ${visit.usesRemaining ?? 0}`, 14, 78);
+    
+    // Header
+    doc.setFillColor(15, 23, 42); // Slate-900
+    doc.rect(0, 0, 210, 40, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(22);
+    doc.text('LytiksControl Access', 14, 25);
+    doc.setFontSize(10);
+    doc.text('Reporte de Seguridad y Trazabilidad', 14, 32);
 
-    let y = 90;
-    if (visit.docImage) {
-      doc.text('Foto documento:', 14, y);
-      doc.addImage(visit.docImage, 'PNG', 14, y + 4, 60, 40);
-      y += 48;
+    // Info
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(14);
+    doc.text('Detalle de la Visita', 14, 55);
+    
+    doc.setFontSize(11);
+    doc.text(`Visitante: ${visit.visitorName}`, 14, 65);
+    doc.text(`ID/Cédula: ${visit.cedula || 'N/A'}`, 14, 72);
+    doc.text(`Empresa: ${visit.company}`, 14, 79);
+    doc.text(`Anfitrión: ${visit.hostName}`, 14, 86);
+    doc.text(`Fecha: ${visit.date}`, 14, 93);
+    doc.text(`Entrada: ${visit.checkIn || '--:--'}`, 100, 93);
+    doc.text(`Salida: ${visit.checkOut || '--:--'}`, 150, 93);
+
+    // Evidencias
+    let y = 110;
+    doc.setFontSize(14);
+    doc.text('Evidencia Digital', 14, y);
+    y += 10;
+
+    if (visit.evidence) {
+        if (visit.evidence.docPhoto) {
+            doc.setFontSize(10);
+            doc.text('Documento de Identidad:', 14, y);
+            doc.addImage(visit.evidence.docPhoto, 'JPEG', 14, y + 5, 80, 50); // Foto doc
+        }
+        
+        if (visit.evidence.assetPhoto) {
+            doc.text('Activo Declarado:', 110, y);
+            doc.addImage(visit.evidence.assetPhoto, 'JPEG', 110, y + 5, 80, 50); // Foto activo
+        }
+        
+        y += 65;
+
+        if (visit.evidence.signature) {
+            doc.text('Firma Digital del Visitante:', 14, y);
+            doc.addImage(visit.evidence.signature, 'PNG', 14, y + 5, 60, 30); // Firma
+            
+            // Texto legal
+            doc.setFontSize(8);
+            doc.setTextColor(100);
+            doc.text('Declaro haber recibido la inducción de seguridad y acepto las políticas de ingreso.', 14, y + 40);
+        }
+    } else {
+        doc.setFontSize(10);
+        doc.setTextColor(150);
+        doc.text('Sin evidencia digital registrada (Check-in manual o anterior a actualización).', 14, y);
     }
-    if (visit.signatureData) {
-      doc.text('Firma:', 14, y);
-      doc.addImage(visit.signatureData, 'PNG', 14, y + 4, 60, 30);
-      y += 40;
-    }
+
     doc.save(`visita-${visit.id}.pdf`);
   };
 
+  // Auth Config
   const roleOptions = [
-    { id: 'visitor', label: 'Web Visitante', icon: Globe2, gradient: 'from-indigo-500 to-cyan-500' },
-    { id: 'kiosk', label: 'Tablet / Kiosco', icon: MonitorSmartphone, gradient: 'from-purple-500 to-indigo-500' },
-    { id: 'admin', label: 'Administrador', icon: Shield, gradient: 'from-emerald-500 to-teal-500' },
-    { id: 'host', label: 'Anfitrión (Ana)', icon: UserIcon, gradient: 'from-amber-500 to-orange-500' },
-    { id: 'reception', label: 'Recepción', icon: Hand, gradient: 'from-rose-500 to-orange-500' },
+    { id: 'visitor', label: 'Web Visitante', icon: Globe2 },
+    { id: 'kiosk', label: 'Kiosco Tablet', icon: MonitorSmartphone },
+    { id: 'porteria', label: 'Garita / Portería', icon: ShieldCheck }, // NUEVO ROL
+    { id: 'admin', label: 'Administrador', icon: Shield },
+    { id: 'reception', label: 'Recepción', icon: Hand },
   ];
+  
   const demoAccounts = [
     { email: 'kiosk@demo.com', pass: 'kiosk123', role: 'kiosk', label: 'Modo Kiosko' },
-    { email: 'rx@demo.com', pass: 'recep123', role: 'reception', label: 'Recepción' },
+    { email: 'guardia@demo.com', pass: 'guardia123', role: 'porteria', label: 'Portería' },
     { email: 'admin@demo.com', pass: 'admin123', role: 'admin', label: 'Administrador' },
   ];
 
@@ -193,125 +269,119 @@ export default function App() {
   };
 
   const handleLogin = () => {
-    if (!loginEmail || !loginPass) {
-      addNotification('Completa email y clave para acceder.');
-      return;
-    }
+    if (!loginEmail || !loginPass) { addNotification('Datos incompletos', 'warn'); return; }
     const match = demoAccounts.find(u => u.email === loginEmail && u.pass === loginPass);
-    if (!match && !loginEmail.endsWith('@empresa.com')) {
-      addNotification('Credenciales demo: kiosk@demo.com / kiosk123, rx@demo.com / recep123, admin@demo.com / admin123');
-      return;
-    }
-    const effectiveRole = match ? match.role : loginRole;
+    if (!match) { addNotification('Credenciales inválidas', 'crit'); return; }
+    
     setAuthenticated(true);
-    setRole(effectiveRole);
-    addLog('Login', `Ingreso de ${loginEmail} como ${effectiveRole}`, 'Portal Auth');
+    setRole(match.role);
+    addLog('Login', `Ingreso de ${loginEmail}`, 'Portal Auth');
   };
 
+  // Validar Código (QR o Manual) para Portal Visitante (No Kiosko)
   const handleCodeValidate = () => {
     const found = visits.find(v => v.validationCode === codeLookup && v.status === 'approved');
     if (found) {
-      if ((found.usesRemaining ?? 0) <= 0) {
-        setCodeError('Código ya utilizado.');
-        setCodeVisit(null);
-        return;
-      }
-      if (found.validationExpiresAt && found.validationExpiresAt < Date.now()) {
-        setCodeError('Código expiró, solicita uno nuevo en el kiosko.');
-        setCodeVisit(null);
-        return;
-      }
-      setCodeVisit(found);
-      setCodeError('');
+       setCodeVisit(found);
+       setCodeError('');
     } else {
-      setCodeVisit(null);
-      setCodeError('Código no válido o visita no aprobada.');
+       setCodeError('Código no válido.');
     }
   };
 
   if (!authenticated) {
     return (
-      <LoginScreen
-        setAuthenticated={setAuthenticated}
-        setRole={setRole}
-        addLog={addLog}
-        loginMode={loginMode}
-        setLoginMode={setLoginMode}
-        loginEmail={loginEmail}
-        setLoginEmail={setLoginEmail}
-        loginPass={loginPass}
-        setLoginPass={setLoginPass}
-        loginRole={loginRole}
-        setLoginRole={setLoginRole}
-        handleLogin={handleLogin}
-        roleOptions={roleOptions}
-        demoAccounts={demoAccounts}
-      />
+      <div className="theme-space">
+        <LoginScreen
+          setAuthenticated={setAuthenticated}
+          setRole={setRole}
+          addLog={addLog}
+          loginMode={loginMode}
+          setLoginMode={setLoginMode}
+          loginEmail={loginEmail}
+          setLoginEmail={setLoginEmail}
+          loginPass={loginPass}
+          setLoginPass={setLoginPass}
+          loginRole={loginRole}
+          setLoginRole={setLoginRole}
+          handleLogin={handleLogin}
+          roleOptions={roleOptions}
+          demoAccounts={demoAccounts}
+        />
+      </div>
     );
   }
 
   return (
-    <div className={`font-sans antialiased min-h-screen bg-slate-50 text-slate-900`}>
-      <div className="fixed top-4 right-4 z-50 flex flex-col gap-2" aria-live="assertive">
-        {notifications.map(n => {
-          const styles = {
-            info: 'bg-slate-900 text-white border border-white/10',
-            warn: 'bg-amber-50 text-amber-900 border border-amber-200',
-            crit: 'bg-red-600 text-white border border-red-500/60'
-          };
-          const icons = {
-            info: <Info size={16} className="opacity-80" />,
-            warn: <AlertTriangle size={16} />,
-            crit: <AlertTriangle size={16} />
-          };
-          return (
-            <div key={n.id} className={`px-4 py-3 rounded-lg shadow-lg text-sm flex items-center gap-2 animate-slide-in-right ${styles[n.severity] || styles.info}`}>
-              {icons[n.severity] || icons.info} {n.msg}
-            </div>
-          );
-        })}
+    <div className="font-sans antialiased min-h-screen bg-slate-50 text-slate-900">
+      {/* Toast Notifications */}
+      <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2">
+        {notifications.map(n => (
+          <div key={n.id} className={`px-4 py-3 rounded-lg shadow-xl text-sm flex items-center gap-2 animate-slide-in-right border ${
+            n.severity === 'crit' ? 'bg-red-600 text-white border-red-500' : 
+            n.severity === 'warn' ? 'bg-amber-100 text-amber-900 border-amber-200' : 
+            'bg-slate-800 text-white border-slate-700'
+          }`}>
+             {n.severity === 'crit' && <AlertTriangle size={16}/>}
+             {n.msg}
+          </div>
+        ))}
       </div>
 
       {role === 'visitor' && (
-        <PublicPortal
-          VISIT_TYPES={VISIT_TYPES}
-          formData={portalFormData}
-          setFormData={setPortalFormData}
-          step={portalStep}
-          setStep={setPortalStep}
-          createVisitRequest={createVisitRequest}
-          codeLookup={codeLookup}
-          setCodeLookup={setCodeLookup}
-          codeError={codeError}
-          codeVisit={codeVisit}
-          handleCodeValidate={handleCodeValidate}
-          setCodeError={setCodeError}
-          handleLogout={handleLogout}
-        />
+        <div className="theme-space min-h-screen">
+          <PublicPortal
+            VISIT_TYPES={VISIT_TYPES}
+            formData={portalFormData}
+            setFormData={setPortalFormData}
+            step={portalStep}
+            setStep={setPortalStep}
+            createVisitRequest={createVisitRequest}
+            codeLookup={codeLookup}
+            setCodeLookup={setCodeLookup}
+            codeError={codeError}
+            codeVisit={codeVisit}
+            handleCodeValidate={handleCodeValidate}
+            handleLogout={handleLogout}
+          />
+        </div>
       )}
+
       {role === 'kiosk' && (
-        <TabletMode
-          visits={visits}
-          setVisits={setVisits}
-          decrementUse={decrementUse}
-          handleCheckIn={handleCheckIn}
-          addLog={addLog}
-          addNotification={addNotification}
-          lastCodeRotation={lastCodeRotation}
-          handleLogout={handleLogout}
-        />
+        <div className="theme-space min-h-screen">
+          <TabletMode
+            visits={visits}
+            setVisits={setVisits}
+            decrementUse={decrementUse}
+            handleCheckIn={handleCheckIn}
+            handleCheckout={handleCheckout} // Pasamos la función de salida
+            addLog={addLog}
+            addNotification={addNotification}
+            lastCodeRotation={lastCodeRotation}
+            handleLogout={handleLogout}
+          />
+        </div>
       )}
-      {['admin', 'host', 'reception'].includes(role) && (
+
+      {/* ROL PORTERÍA Y ADMIN COMPARTEN LAYOUT INTERNO PERO CON VISTAS DISTINTAS */}
+      {['admin', 'host', 'reception', 'porteria'].includes(role) && (
         <InternalLayout
           role={role}
           visits={visits}
           logs={logs}
           updateVisitStatus={updateVisitStatus}
+          handleCheckout={handleCheckout}
+          handleAssetValidation={handleAssetValidation} // Nueva función para portería
+          markJudicialResult={markJudicialResult}
           generatePDF={generatePDF}
           notifications={notifications}
           clearNotifications={() => setNotifications([])}
           handleLogout={handleLogout}
         />
+      )}
+
+      {role === 'sos' && (
+        <EvacuationView visits={visits} handleLogout={handleLogout} />
       )}
     </div>
   );
